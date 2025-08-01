@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rustreexo WASM Browser Example</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+        
+        .container {
+            background-color: #2d2d2d;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #444;
+        }
+        
+        h1 {
+            color: #f39c12;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h2 {
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+        
+        button {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            font-family: inherit;
+        }
+        
+        button:hover {
+            background-color: #229954;
+        }
+        
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+        
+        .output {
+            background-color: #1a1a1a;
+            border: 1px solid #555;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
+        
+        .success { color: #27ae60; }
+        .error { color: #e74c3c; }
+        .info { color: #3498db; }
+        .warning { color: #f39c12; }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background-color: #34495e;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #f39c12;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #bdc3c7;
+            margin-top: 5px;
+        }
+        
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        input[type="number"] {
+            background-color: #2d2d2d;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            padding: 8px;
+            border-radius: 3px;
+            width: 80px;
+            font-family: inherit;
+        }
+    </style>
+</head>
+<body>
+    <h1>🦀 Rustreexo WASM Browser Demo</h1>
+    <div style="text-align: center; margin-bottom: 20px; color: #f39c12;">
+        🔐 <strong>Enhanced with Real Cryptographic Hashing</strong> 🔐
+    </div>
+    
+    <div class="container">
+        <h2>Accumulator Status</h2>
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="leaves-count">0</div>
+                <div class="stat-label">Total Leaves</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="roots-count">0</div>
+                <div class="stat-label">Root Hashes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="proofs-generated">0</div>
+                <div class="stat-label">Proofs Generated</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="proofs-verified">0</div>
+                <div class="stat-label">Proofs Verified</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>Operations</h2>
+        <div class="controls">
+            <button onclick="initializeWasm()" id="init-btn">Initialize WASM</button>
+            <button onclick="addElements()" id="add-btn" disabled>Add Elements</button>
+            <input type="number" id="element-count" value="10" min="1" max="100">
+            <button onclick="generateProof()" id="proof-btn" disabled>Generate Proof</button>
+            <button onclick="verifyProof()" id="verify-btn" disabled>Verify Proof</button>
+            <button onclick="performBenchmark()" id="benchmark-btn" disabled>Run Benchmark</button>
+            <button onclick="clearOutput()" id="clear-btn">Clear Output</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>Output</h2>
+        <div class="output" id="output"></div>
+    </div>
+
+    <!-- Include CryptoJS for real cryptographic hashing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    
+    <script type="module">
+        let wasmModule = null;
+        let stump = null;
+        let pollard = null;
+        let elements = [];
+        let lastProof = null;
+        let lastProofTarget = null;
+        let stats = {
+            proofsGenerated: 0,
+            proofsVerified: 0
+        };
+
+        // Utility functions
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type;
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function updateStats() {
+            document.getElementById('leaves-count').textContent = stump ? stump.num_leaves() : '0';
+            document.getElementById('roots-count').textContent = stump ? stump.roots().length : '0';
+            document.getElementById('proofs-generated').textContent = stats.proofsGenerated;
+            document.getElementById('proofs-verified').textContent = stats.proofsVerified;
+        }
+
+        // Real cryptographic hash functions matching the reference tests
+        function hashFromU8(preimage) {
+            // Ensure the input is a valid u8 value (0-255)
+            if (preimage < 0 || preimage > 255 || !Number.isInteger(preimage)) {
+                throw new Error(`Invalid u8 value: ${preimage}. Must be an integer between 0-255.`);
+            }
+
+            // Create a single-byte array with the preimage value
+            const singleByteArray = new Uint8Array([preimage]);
+            
+            // Compute SHA-256 hash using CryptoJS to match WASM implementation
+            const wordArray = CryptoJS.lib.WordArray.create(Array.from(singleByteArray));
+            const sha256Hash = CryptoJS.SHA256(wordArray).toString(CryptoJS.enc.Hex);
+            
+            return sha256Hash;
+        }
+
+        function parentHash(left, right) {
+            // Validate hex strings
+            if (!/^[0-9a-fA-F]{64}$/.test(left) || !/^[0-9a-fA-F]{64}$/.test(right)) {
+                throw new Error('Invalid hash format: must be 64-character hex strings');
+            }
+
+            // Convert hex strings to binary arrays
+            const leftBytes = [];
+            const rightBytes = [];
+            
+            for (let i = 0; i < left.length; i += 2) {
+                leftBytes.push(parseInt(left.substr(i, 2), 16));
+                rightBytes.push(parseInt(right.substr(i, 2), 16));
+            }
+            
+            // Concatenate the two hashes
+            const combined = new Uint8Array([...leftBytes, ...rightBytes]);
+            
+            // Compute SHA-512/256 hash using CryptoJS (approximated as SHA512 truncated)
+            const wordArray = CryptoJS.lib.WordArray.create(Array.from(combined));
+            const sha512Hash = CryptoJS.SHA512(wordArray).toString(CryptoJS.enc.Hex);
+            
+            // Truncate to 256 bits (64 hex characters) to simulate SHA-512/256
+            return sha512Hash.substring(0, 64);
+        }
+
+        function generateTestHash(index) {
+            // Generate real cryptographic hashes using the same method as reference tests
+            return hashFromU8(index % 256);
+        }
+
+        // Main functions
+        window.initializeWasm = async function() {
+            try {
+                log('🚀 Initializing Rustreexo WASM module...', 'info');
+                
+                // Import the WASM module (update path based on your build target)
+                wasmModule = await import('../pkg/rustreexo_wasm.js');
+                await wasmModule.default(); // Initialize
+                
+                // Create accumulators
+                stump = new wasmModule.WasmStump();
+                pollard = new wasmModule.WasmPollard();
+                
+                log('✅ WASM module initialized successfully!', 'success');
+                log('✅ Created Stump and Pollard accumulators', 'success');
+                log('🔐 Using real SHA-256 cryptographic hashing', 'info');
+                
+                // Enable buttons
+                document.getElementById('init-btn').disabled = true;
+                document.getElementById('add-btn').disabled = false;
+                document.getElementById('benchmark-btn').disabled = false;
+                
+                updateStats();
+                
+            } catch (error) {
+                log(`❌ Failed to initialize WASM: ${error.message}`, 'error');
+            }
+        };
+
+        window.addElements = function() {
+            if (!stump || !pollard) {
+                log('❌ Please initialize WASM first', 'error');
+                return;
+            }
+
+            try {
+                const count = parseInt(document.getElementById('element-count').value) || 10;
+                log(`📦 Adding ${count} elements to accumulators...`, 'info');
+                
+                const newElements = [];
+                const startIndex = elements.length;
+                
+                for (let i = 0; i < count; i++) {
+                    const hash = generateTestHash(startIndex + i);
+                    newElements.push(hash);
+                    if (i < 3) { // Show first few hashes for verification
+                        log(`   Hash(${startIndex + i}): ${hash}`, 'info');
+                    }
+                }
+                if (count > 3) {
+                    log(`   ... and ${count - 3} more hashes`, 'info');
+                }
+                
+                const emptyProof = JSON.stringify({ targets: [], hashes: [] });
+                
+                // Create WASM Hash objects for real hashes
+                const wasmHashes = newElements.map(hash => new wasmModule.Hash(hash));
+                
+                try {
+                    // Add to Stump using WASM Hash objects
+                    stump.modify(emptyProof, wasmHashes, []);
+                    
+                    // Add to Pollard using WASM Hash objects
+                    const additions = wasmHashes.map(wasmHash => ({ hash: wasmHash, remember: true }));
+                    pollard.modify(emptyProof, JSON.stringify(additions), []);
+                    
+                    elements.push(...newElements);
+                    
+                    log(`✅ Added ${count} elements with real cryptographic hashes`, 'success');
+                    log(`   Total elements: ${elements.length}`, 'info');
+                    log(`   Accumulator leaves: ${stump.num_leaves()}`, 'info');
+                    log(`   Root hashes: ${stump.roots().length}`, 'info');
+                    
+                    // Clean up WASM objects
+                    wasmHashes.forEach(wasmHash => wasmHash.free());
+                    
+                } catch (error) {
+                    log(`⚠️  WASM modify API differs, using string hashes as fallback`, 'warning');
+                    
+                    // Fallback to string-based API
+                    stump.modify(emptyProof, newElements, []);
+                    const additions = newElements.map(hash => ({ hash, remember: true }));
+                    pollard.modify(emptyProof, JSON.stringify(additions), []);
+                    
+                    elements.push(...newElements);
+                    
+                    log(`✅ Added ${count} elements successfully (fallback mode)`, 'success');
+                    log(`   Total elements: ${elements.length}`, 'info');
+                    log(`   Accumulator leaves: ${stump.num_leaves()}`, 'info');
+                    log(`   Root hashes: ${stump.roots().length}`, 'info');
+                }
+                
+                // Enable proof buttons
+                document.getElementById('proof-btn').disabled = false;
+                
+                updateStats();
+                
+            } catch (error) {
+                log(`❌ Failed to add elements: ${error.message}`, 'error');
+            }
+        };
+
+        window.generateProof = function() {
+            if (!pollard || elements.length === 0) {
+                log('❌ No elements to generate proof for', 'error');
+                return;
+            }
+
+            try {
+                // Generate proof for a random element
+                const randomIndex = Math.floor(Math.random() * elements.length);
+                const targetElement = elements[randomIndex];
+                
+                log(`🔐 Generating proof for element ${randomIndex + 1}/${elements.length}...`, 'info');
+                log(`   Target: ${targetElement.substring(0, 16)}...`, 'info');
+                
+                const startTime = performance.now();
+                const proof = pollard.prove_single(targetElement);
+                const endTime = performance.now();
+                
+                lastProof = proof;
+                lastProofTarget = targetElement;
+                stats.proofsGenerated++;
+                
+                log(`✅ Proof generated in ${(endTime - startTime).toFixed(2)}ms`, 'success');
+                log(`   Proof size: ${proof.length} characters`, 'info');
+                
+                // Enable verify button
+                document.getElementById('verify-btn').disabled = false;
+                
+                updateStats();
+                
+            } catch (error) {
+                log(`❌ Failed to generate proof: ${error.message}`, 'error');
+            }
+        };
+
+        window.verifyProof = function() {
+            if (!stump || !lastProof || !lastProofTarget) {
+                log('❌ No proof to verify', 'error');
+                return;
+            }
+
+            try {
+                log('🔍 Verifying proof...', 'info');
+                
+                const startTime = performance.now();
+                const isValid = stump.verify(lastProof, [lastProofTarget]);
+                const endTime = performance.now();
+                
+                stats.proofsVerified++;
+                
+                if (isValid) {
+                    log(`✅ Proof verification successful in ${(endTime - startTime).toFixed(2)}ms`, 'success');
+                } else {
+                    log(`❌ Proof verification failed`, 'error');
+                }
+                
+                updateStats();
+                
+            } catch (error) {
+                log(`❌ Verification error: ${error.message}`, 'error');
+            }
+        };
+
+        window.performBenchmark = async function() {
+            if (!stump || !pollard) {
+                log('❌ Please initialize WASM first', 'error');
+                return;
+            }
+
+            try {
+                log('⚡ Starting performance benchmark...', 'info');
+                
+                // Clear existing state
+                if (stump) stump.free();
+                if (pollard) pollard.free();
+                
+                stump = new wasmModule.WasmStump();
+                pollard = new wasmModule.WasmPollard();
+                elements = [];
+                
+                // Benchmark parameters
+                const testSizes = [10, 50, 100];
+                
+                for (const size of testSizes) {
+                    log(`\n📊 Testing with ${size} elements:`, 'info');
+                    
+                    // Generate test elements
+                    const testElements = [];
+                    for (let i = 0; i < size; i++) {
+                        testElements.push(generateTestHash(i));
+                    }
+                    
+                    // Measure addition time
+                    const addStart = performance.now();
+                    const emptyProof = JSON.stringify({ targets: [], hashes: [] });
+                    stump.modify(emptyProof, testElements, []);
+                    const additions = testElements.map(hash => ({ hash, remember: true }));
+                    pollard.modify(emptyProof, JSON.stringify(additions), []);
+                    const addEnd = performance.now();
+                    
+                    log(`   Addition: ${(addEnd - addStart).toFixed(2)}ms (${((addEnd - addStart) / size).toFixed(2)}ms per element)`, 'info');
+                    
+                    // Measure proof generation time
+                    const proofStart = performance.now();
+                    const testProofs = [];
+                    for (let i = 0; i < Math.min(10, size); i++) {
+                        const proof = pollard.prove_single(testElements[i]);
+                        testProofs.push({ proof, target: testElements[i] });
+                    }
+                    const proofEnd = performance.now();
+                    
+                    const proofCount = testProofs.length;
+                    log(`   Proof generation: ${(proofEnd - proofStart).toFixed(2)}ms for ${proofCount} proofs (${((proofEnd - proofStart) / proofCount).toFixed(2)}ms per proof)`, 'info');
+                    
+                    // Measure verification time
+                    const verifyStart = performance.now();
+                    let validCount = 0;
+                    for (const { proof, target } of testProofs) {
+                        if (stump.verify(proof, [target])) {
+                            validCount++;
+                        }
+                    }
+                    const verifyEnd = performance.now();
+                    
+                    log(`   Proof verification: ${(verifyEnd - verifyStart).toFixed(2)}ms for ${proofCount} proofs (${((verifyEnd - verifyStart) / proofCount).toFixed(2)}ms per proof)`, 'info');
+                    log(`   Valid proofs: ${validCount}/${proofCount}`, validCount === proofCount ? 'success' : 'error');
+                    
+                    elements = testElements;
+                }
+                
+                log('\n🎉 Benchmark completed!', 'success');
+                
+                // Enable operation buttons
+                document.getElementById('add-btn').disabled = false;
+                document.getElementById('proof-btn').disabled = false;
+                
+                updateStats();
+                
+            } catch (error) {
+                log(`❌ Benchmark failed: ${error.message}`, 'error');
+            }
+        };
+
+        window.clearOutput = function() {
+            document.getElementById('output').innerHTML = '';
+        };
+
+        // Initial log
+        log('👋 Welcome to Rustreexo WASM Browser Demo!', 'info');
+        log('🔐 Now featuring real SHA-256 cryptographic hashing', 'success');
+        log('Click "Initialize WASM" to get started.', 'info');
+    </script>
+</body>
+</html>

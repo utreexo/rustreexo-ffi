@@ -1,0 +1,24 @@
+{
+  "name": "rustreexo-wasm-examples",
+  "version": "1.0.0",
+  "description": "Usage examples for Rustreexo WASM bindings",
+  "type": "module",
+  "scripts": {
+    "basic": "node basic_usage.cjs",
+    "nodejs": "node nodejs_example.cjs",
+    "browser": "python -m http.server 8000",
+    "serve": "npx serve . -p 8000"
+  },
+  "dependencies": {
+    "serve": "^14.0.0"
+  },
+  "keywords": [
+    "utreexo",
+    "accumulator",
+    "bitcoin",
+    "wasm",
+    "cryptography"
+  ],
+  "author": "Rustreexo Contributors",
+  "license": "MIT"
+}

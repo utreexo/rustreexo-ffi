@@ -1,0 +1,92 @@
+version: 2
+updates:
+  # Rust dependencies
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "06:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "AbdelStark"
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "cargo"
+      include: "scope"
+    groups:
+      # Group patch updates
+      patch-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+      # Group minor updates for related crates
+      wasm-related:
+        patterns:
+          - "wasm-*"
+          - "js-sys"
+          - "web-sys"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group crypto/security related crates
+      crypto-updates:
+        patterns:
+          - "*crypto*"
+          - "*hash*"
+          - "*digest*"
+          - "ring"
+          - "rustls"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # NPM dependencies in examples
+  - package-ecosystem: "npm"
+    directory: "/examples"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "AbdelStark"
+    labels:
+      - "dependencies"
+      - "javascript"
+    commit-message:
+      prefix: "npm"
+      include: "scope"
+    groups:
+      dev-dependencies:
+        patterns:
+          - "*"
+        dependency-type: "development"
+      production-dependencies:
+        patterns:
+          - "*"
+        dependency-type: "production"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "AbdelStark"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "actions"
+      include: "scope"
+    groups:
+      actions-updates:
+        patterns:
+          - "*"
