@@ -210,7 +210,6 @@ jobs:
         echo "📊 Generating test report..."
         
         npm run test:coverage
-      working-directory: rustreexo-wasm/tests/typescript
         
         echo "# TypeScript Reference Tests Report" > test-report.md
         echo "" >> test-report.md
@@ -230,6 +229,7 @@ jobs:
         echo "- Real-world accumulator workflows" >> test-report.md
         
         cat test-report.md
+      working-directory: rustreexo-wasm/tests/typescript
 
     - name: Upload test artifacts
       uses: actions/upload-artifact@v4

@@ -195,10 +195,14 @@ jobs:
 
     - name: Test Node.js package
       run: |
-        cd rustreexo-wasm/examples
-        npm ci
+        echo "🧪 Testing Node.js package loading..."
+        
+        # The package should be directly in pkg-node/
+        PKG_PATH="./pkg-node/rustreexo_wasm.js"
+        
+        echo "Loading package from: $PKG_PATH"
         node -e "
-          const pkg = require('../pkg-node/rustreexo_wasm.js');
+          const pkg = require('$PKG_PATH');
           console.log('✅ Package loaded successfully');
           const stump = new pkg.WasmStump();
           console.log('✅ WasmStump created successfully');
@@ -210,10 +214,13 @@ jobs:
 
     - name: Verify package contents
       run: |
+        echo "📦 Downloaded artifact contents:"
+        find . -name "*.wasm" -o -name "*.js" -o -name "package.json" | head -10
+        
         if [ "${{ matrix.target }}" = "nodejs" ]; then
-          PKG_DIR="rustreexo-wasm/pkg-node"
+          PKG_DIR="pkg-node"
         else  
-          PKG_DIR="rustreexo-wasm/pkg-${{ matrix.target }}"
+          PKG_DIR="pkg-${{ matrix.target }}"
         fi
         
         echo "📦 Verifying ${{ matrix.target }} package contents in ${PKG_DIR}/:"

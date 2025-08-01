@@ -72,7 +72,7 @@ jobs:
         echo ""
         
         # Run benchmark with detailed logging
-        npm run benchmark 2>&1 | tee ../../benchmark-results/benchmark-output.log
+        npm run benchmark 2>&1 | tee ../../../benchmark-results/benchmark-output.log
         
         echo "✅ Benchmark completed successfully"
       working-directory: rustreexo-wasm/tests/typescript
