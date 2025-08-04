@@ -1,0 +1,250 @@
+name: WASM Build Artifacts
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-wasm:
+    name: Build WASM Packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain  
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+
+    - name: Install wasm-pack
+      uses: jetli/wasm-pack-action@v0.4.0
+      with:
+        version: 'latest'
+
+    - name: Extract version
+      id: version
+      run: |
+        VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+      working-directory: rustreexo-wasm
+
+    - name: Build WASM for web target
+      run: |
+        wasm-pack build \
+          --target web \
+          --out-dir pkg-web \
+          --release
+      working-directory: rustreexo-wasm
+
+    - name: Build WASM for Node.js target
+      run: |
+        wasm-pack build \
+          --target nodejs \
+          --out-dir pkg-node \
+          --release
+      working-directory: rustreexo-wasm
+
+    - name: Build WASM for bundler target
+      run: |
+        wasm-pack build \
+          --target bundler \
+          --out-dir pkg-bundler \
+          --release
+      working-directory: rustreexo-wasm
+
+
+    - name: Update package names for NPM publishing
+      run: |
+        # Update package names to scoped names
+        jq '.name = "@rustreexo/rustreexo-wasm-web"' pkg-web/package.json > pkg-web/package.json.tmp && mv pkg-web/package.json.tmp pkg-web/package.json
+        jq '.name = "@rustreexo/rustreexo-wasm-nodejs"' pkg-node/package.json > pkg-node/package.json.tmp && mv pkg-node/package.json.tmp pkg-node/package.json  
+        jq '.name = "@rustreexo/rustreexo-wasm-bundler"' pkg-bundler/package.json > pkg-bundler/package.json.tmp && mv pkg-bundler/package.json.tmp pkg-bundler/package.json
+        
+        # Add repository and other metadata to all packages
+        for pkg_dir in pkg-web pkg-node pkg-bundler; do
+          jq '. + {
+            "repository": {
+              "type": "git", 
+              "url": "git+https://github.com/${{ github.repository }}.git"
+            },
+            "bugs": {
+              "url": "https://github.com/${{ github.repository }}/issues"
+            },
+            "homepage": "https://github.com/${{ github.repository }}#readme",
+            "keywords": ["utreexo", "accumulator", "bitcoin", "wasm", "cryptography", "rust"],
+            "author": "AbdelStark",
+            "license": "MIT"
+          }' ${pkg_dir}/package.json > ${pkg_dir}/package.json.tmp && mv ${pkg_dir}/package.json.tmp ${pkg_dir}/package.json
+        done
+        
+        echo "✅ Updated package metadata for NPM publishing"
+      working-directory: rustreexo-wasm
+
+    - name: Generate package info
+      run: |
+        echo "# WASM Package Information" > PACKAGE_INFO.md
+        echo "" >> PACKAGE_INFO.md
+        echo "**Version:** ${{ steps.version.outputs.version }}" >> PACKAGE_INFO.md
+        echo "**Build Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> PACKAGE_INFO.md
+        echo "**Commit:** ${{ github.sha }}" >> PACKAGE_INFO.md
+        echo "" >> PACKAGE_INFO.md
+        echo "## Package Sizes" >> PACKAGE_INFO.md
+        echo "" >> PACKAGE_INFO.md
+        echo "| Target | WASM Size | JS Size |" >> PACKAGE_INFO.md
+        echo "|--------|-----------|---------|" >> PACKAGE_INFO.md
+        
+        for target in web node bundler; do
+          wasm_size=$(ls -lh pkg-${target}/*.wasm | awk '{print $5}')
+          js_size=$(ls -lh pkg-${target}/*.js | awk '{print $5}')
+          echo "| ${target} | ${wasm_size} | ${js_size} |" >> PACKAGE_INFO.md
+        done
+        
+        echo "" >> PACKAGE_INFO.md
+        echo "## File Checksums" >> PACKAGE_INFO.md
+        echo "" >> PACKAGE_INFO.md
+        echo '```' >> PACKAGE_INFO.md
+        find pkg-* -name "*.wasm" -exec sha256sum {} \; >> PACKAGE_INFO.md
+        echo '```' >> PACKAGE_INFO.md
+      working-directory: rustreexo-wasm
+
+    - name: Upload web package
+      uses: actions/upload-artifact@v4
+      with:
+        name: rustreexo-wasm-web-${{ steps.version.outputs.version }}
+        path: |
+          rustreexo-wasm/pkg-web/
+          rustreexo-wasm/PACKAGE_INFO.md
+        retention-days: 90
+
+    - name: Upload Node.js package
+      uses: actions/upload-artifact@v4
+      with:
+        name: rustreexo-wasm-nodejs-${{ steps.version.outputs.version }}
+        path: |
+          rustreexo-wasm/pkg-node/
+          rustreexo-wasm/PACKAGE_INFO.md
+        retention-days: 90
+
+    - name: Upload bundler package
+      uses: actions/upload-artifact@v4
+      with:
+        name: rustreexo-wasm-bundler-${{ steps.version.outputs.version }}
+        path: |
+          rustreexo-wasm/pkg-bundler/
+          rustreexo-wasm/PACKAGE_INFO.md
+        retention-days: 90
+
+
+    - name: Upload all packages (combined)
+      uses: actions/upload-artifact@v4
+      with:
+        name: rustreexo-wasm-all-targets-${{ steps.version.outputs.version }}
+        path: |
+          rustreexo-wasm/pkg-*/
+          rustreexo-wasm/PACKAGE_INFO.md
+        retention-days: 90
+
+  test-artifacts:
+    name: Test Built Artifacts
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    needs: build-wasm
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        target: [web, nodejs, bundler]
+        exclude:
+          # Reduce test matrix - web tests only on Linux
+          - os: windows-latest
+            target: web
+          - os: macos-latest
+            target: web
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download WASM artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: rustreexo-wasm-${{ matrix.target }}-${{ needs.build-wasm.outputs.version }}
+        path: ./
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+      if: matrix.target == 'nodejs'
+
+    - name: Test Node.js package
+      run: |
+        echo "🧪 Testing Node.js package loading..."
+        
+        # The package should be directly in pkg-node/
+        PKG_PATH="./pkg-node/rustreexo_wasm.js"
+        
+        echo "Loading package from: $PKG_PATH"
+        node -e "
+          const pkg = require('$PKG_PATH');
+          console.log('✅ Package loaded successfully');
+          const stump = new pkg.WasmStump();
+          console.log('✅ WasmStump created successfully');
+          stump.free();
+          console.log('✅ Memory cleanup successful');
+        "
+      shell: bash
+      if: matrix.target == 'nodejs'
+
+    - name: Verify package contents
+      run: |
+        echo "📦 Downloaded artifact contents:"
+        find . -name "*.wasm" -o -name "*.js" -o -name "package.json" | head -10
+        
+        if [ "${{ matrix.target }}" = "nodejs" ]; then
+          PKG_DIR="pkg-node"
+        else  
+          PKG_DIR="pkg-${{ matrix.target }}"
+        fi
+        
+        echo "📦 Verifying ${{ matrix.target }} package contents in ${PKG_DIR}/:"
+        ls -la ${PKG_DIR}/
+        
+        # Check required files exist
+        test -f "${PKG_DIR}/rustreexo_wasm.js" || exit 1
+        test -f "${PKG_DIR}/rustreexo_wasm_bg.wasm" || exit 1
+        test -f "${PKG_DIR}/package.json" || exit 1
+        
+        echo "✅ All required files present"
+        
+        # Check WASM file is not corrupted (skip on Windows where 'file' might not be available)
+        if command -v file > /dev/null 2>&1; then
+          file ${PKG_DIR}/rustreexo_wasm_bg.wasm
+        else
+          echo "Skipping file type check (not available on this platform)"
+        fi
+        
+        # Verify package.json is valid JSON
+        if command -v jq > /dev/null 2>&1; then
+          cat ${PKG_DIR}/package.json | jq . > /dev/null
+          echo "✅ package.json is valid JSON"
+        else
+          echo "Skipping JSON validation (jq not available on this platform)"
+        fi
+      shell: bash

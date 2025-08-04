@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/logs
+**/cache
+**/backup
+**/old
+**/temp
+**/cache
+**/target
+**/pkg*
