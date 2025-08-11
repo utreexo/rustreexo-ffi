@@ -182,7 +182,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download WASM artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: rustreexo-wasm-${{ matrix.target }}-${{ needs.build-wasm.outputs.version }}
         path: ./
