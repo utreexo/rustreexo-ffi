@@ -161,7 +161,7 @@ jobs:
         registry-url: 'https://registry.npmjs.org'
 
     - name: Download NPM packages
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: npm-packages-${{ needs.prepare-release.outputs.version }}
         path: ./
@@ -261,7 +261,7 @@ jobs:
         fetch-depth: 0
 
     - name: Download release packages
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: release-packages-${{ needs.prepare-release.outputs.version }}
         path: release-packages/
@@ -315,7 +315,7 @@ jobs:
         echo '```' >> release-notes.md
 
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ needs.prepare-release.outputs.tag }}
         name: Release ${{ needs.prepare-release.outputs.tag }}
