@@ -20,7 +20,7 @@ jobs:
       
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install Rust toolchain  
       uses: dtolnay/rust-toolchain@stable
@@ -179,16 +179,16 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Download WASM artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: rustreexo-wasm-${{ matrix.target }}-${{ needs.build-wasm.outputs.version }}
         path: ./
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v5
       with:
         node-version: '18'
       if: matrix.target == 'nodejs'
