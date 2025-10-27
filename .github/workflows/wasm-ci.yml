@@ -24,7 +24,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master
@@ -82,7 +82,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -126,7 +126,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -140,7 +140,7 @@ jobs:
       uses: jetli/wasm-pack-action@v0.4.0
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '18'
         cache: 'npm'
@@ -194,7 +194,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -207,7 +207,7 @@ jobs:
       working-directory: rustreexo-wasm
 
     - name: Upload documentation
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: rust-docs
         path: rustreexo-wasm/target/doc/
